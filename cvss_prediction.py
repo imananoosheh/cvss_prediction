@@ -114,9 +114,15 @@ class NLPModel:
 		file_address_1 = r"(((\w+\.?\w+)\/)+(\w+\.)*\w+)" # for patterns like public/index.php/home/memberaddress/index.html or public/index.php/home/memberaddress/edit/address_id/2.html or libjasper/jpc/jpc_enc.c
 		file_name = r"(\w+\.\w+)" # for matching file names like 2345BdPcSafe.sys
 		file_address_2 = r"((\\\w+\.?\w+)+(\.?\w+)*)" # for patterns like \Lib\Lib\Action\Admin\DataAction.class.php
-		punctuations = r"\.:,()" # for removing punctuations like , or . or ()
+		punctuations = r"[\.,();:]" # for removing punctuations like comma, dot, brackets, etc.
+		version_pattern_4 = r"\w{3}-\w{3}-\d{4}" # for patterns like ZDI-CAN-5762
+		android_version_pattern = r"Android-(\d\.)*\d" # for patterns like Android-7.0, Android-7.1.1
+		cvss_vector_string_pattern = r"CVSS:\d\.\d(\/\w{1,2}:\w{1})+" # for patterns like CVSS:3.0/AV:L/AC:H/PR:H/UI:R/S:C/C:H/I:N/A:N
 
-		desc = re.sub(r"|".join((version_pattern_1, version_pattern_2, version_pattern_3, file_address_1, file_name, file_address_2, punctuations)), "", desc)
+		desc = re.sub(r"|".join((version_pattern_1, version_pattern_2, android_version_pattern, cvss_vector_string_pattern, version_pattern_3, file_address_1, file_name, file_address_2, version_pattern_4)), "", desc)
+		desc = re.sub(punctuations, "", desc)
+		desc = re.sub(r"\d+", "", desc) # removing any remaining digits
+		desc = re.sub(r"\s+", " ", desc)
 
 		return desc.lower()
 
@@ -175,6 +181,12 @@ class NLPModel:
 	def print_metrics(self, predictions):
 		cm = confusion_matrix(self.y_test, predictions, labels = [0, 1, 2, 3])
 		print(cm)
+
+		recall = np.diag(cm) / np.sum(cm, axis = 1)
+		precision = np.diag(cm) / np.sum(cm, axis = 0)
+
+		print(recall)
+		print(precision)
 
 
 class PreProcessing:
