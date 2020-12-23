@@ -174,5 +174,10 @@ matplotlib_test.ipynb
 images/
 data/nvdcve-1.0-2018.json
 data/nvdcve-1.0-2019.json
+data/nvdcve-1.0-2017.json
 data/testing.json
+data/trained_models/
+data/nvdcve-1.1-2017.json
+data/nvdcve-1.1-2017.json.zip
+glove.6B/
 Figure_1.png
