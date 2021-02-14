@@ -195,7 +195,7 @@ class NLPModel:
         lr = LogisticRegression(max_iter=2000)
         lr.fit(X=x_train_count_vect, y=self.y_train)
 
-        if (self.X_test == False):
+        if (self.X_test is not None):
             X_test_clean = np.vectorize(PreProcessing.clean_vulnerability_description)(self.X_test)
             x_test_count_vect = count_vect.transform(X_test_clean)
             predictions = lr.predict(X=x_test_count_vect)
@@ -238,7 +238,7 @@ class NLPModel:
         lr = LogisticRegression(max_iter=2000)
         lr.fit(X=x_train_tf_idf_vect, y=self.y_train)
 
-        if (self.X_test == False):
+        if (self.X_test is not None):
             X_test_clean = np.vectorize(PreProcessing.clean_vulnerability_description)(self.X_test)
             x_test_tf_idf_vect = tf_idf_vect.transform(X_test_clean)
             predictions = lr.predict(X=x_test_tf_idf_vect)
@@ -350,19 +350,19 @@ class NLPModel:
             file_name: name of file to store the model weights
 
         Returns:
-            None. It just saves the weights in the given file
+            None. It just saves the model weights and sentence to vectorizer object in the given file
         """
 
         if (hasattr(self, 'vectorizer')):
             with open(file_name + '_Vectorizer.pkl', 'wb') as f:
                 pickle.dump(self.vectorizer, f)
 
-        if (self.is_pickleable):
+        if (self.is_pickleable()):
             with open(file_name + '_Model.pkl', 'wb') as f:
                 pickle.dump(self.model, f)
         else:
-            # to-do: handle tensorflow model saving functionality
-            pass
+
+            self.model.save(file_name + "_Model.h5")
 
     def load_nlp_model(self, file_name):
         """
@@ -375,8 +375,8 @@ class NLPModel:
         if (file_name.split('.')[-1] == "pkl"):
             model = pickle.load(open(file_name, 'rb'))
         else:
-            # to-do: handle for tensorflow model
-            pass
+
+            model = tf.keras.models.load_model(file_name)
 
         return model
 
@@ -393,7 +393,7 @@ class NLPModel:
 
         try:
             pickle.dumps(self.model)
-        except Exception:
+        except TypeError:
             return False
 
         return True
@@ -423,47 +423,26 @@ class NLPModel:
         return predicted_category
 
 
-class NLPModelCNN(NLPModel):
+class CountCNNVectorizer:
 
-    def __init__(self, X_train, X_test, y_train, y_test):
-        super().__init__(X_train, X_test, y_train, y_test)
-        self.embedding_dim = 100
+    def fit_transform(self, sentenses):
 
-    def build_cnn_model(self):
+        tokens = [sentense.split() for sentense in sentenses]
 
-        tokens_train = [self.clean_vulnerability_description(description).split() for description in self.X_train]
-        tokens_test = [self.clean_vulnerability_description(description).split() for description in self.X_test]
+        tokens_1d = list(itertools.chain.from_iterable(tokens))
 
-        train_tokens_1d = list(itertools.chain.from_iterable(tokens_train))
-        max_len = max([len(s) for s in tokens_train])
+        self._max_len = max([len(s) for s in tokens])
+        self._w2i = self.get_word_to_index(tokens_1d)
+        self._vocan_len = len(self._w2i) + 1
 
-        self.word_vectors_dict = self.load_word_embedding(file_path="./glove.6B/glove.6B.100d.txt")
-        self.w2i = self.get_word_to_index(train_tokens_1d)
+        return self.transform(sentenses)
 
-        self.vocab_len = len(self.w2i) + 1
+    def transform(self, sentenses):
 
-        train_encoding = self.get_tokens_encoding(tokens_train)
-        test_encoding = self.get_tokens_encoding(tokens_test)
+        if (not hasattr(self, '_w2i')):
+            raise ValueError("Vectorizer is not fitted on any sentense")
 
-        train_encoding_padded = tf.keras.preprocessing.sequence.pad_sequences(train_encoding, maxlen=max_len,
-                                                                              padding="post")
-        test_encoding_paded = tf.keras.preprocessing.sequence.pad_sequences(test_encoding, maxlen=max_len,
-                                                                            padding="post")
-
-        embedding_matrix = self.get_embedding_matrix()
-        y_train_one_hot = PreProcessing.get_one_hot_vectors(self.y_train)
-
-        clf = DeepLearningModels().MultiChannelCNN(max_len, self.vocab_len, self.embedding_dim, embedding_matrix)
-        clf.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-
-        clf.fit(train_encoding_padded, y_train_one_hot, batch_size=10, epochs=20)
-        prediction_prob = clf.predict(test_encoding_paded)
-        predictions = np.argmax(prediction_prob, axis=1)
-
-        return predictions
-
-    def get_tokens_encoding(self, sentence_tokens):
-
+        sentence_tokens = [sentense.split() for sentense in sentenses]
         encoding = []
 
         for sentence in sentence_tokens:
@@ -471,7 +450,7 @@ class NLPModelCNN(NLPModel):
             sentence_encoding = []
 
             for token in sentence:
-                sentence_encoding.append(self.w2i[token])
+                sentence_encoding.append(self._w2i[token])
 
             encoding.append(sentence_encoding)
 
@@ -490,15 +469,110 @@ class NLPModelCNN(NLPModel):
 
         return w2i
 
-    def get_embedding_matrix(self):
 
-        embedding_matrix = np.zeros((self.vocab_len, self.embedding_dim))
+class NLPModelCNN(NLPModel):
 
-        for w in self.w2i:
+    def __init__(self, X_train, y_train, X_test=None, y_test=None):
+        super().__init__(X_train, y_train, X_test, y_test)
+        self.embedding_dim = 100
+
+    def build_cnn_model(self):
+        '''
+        tokens_train = [PreProcessing.clean_vulnerability_description(description).split() for description in self.X_train]
+        tokens_test = [PreProcessing.clean_vulnerability_description(description).split() for description in self.X_test]
+
+        train_tokens_1d = list(itertools.chain.from_iterable(tokens_train))
+        max_len = max([len(s) for s in tokens_train])
+
+        self.word_vectors_dict = self.load_word_embedding(file_path = "./glove.6B/glove.6B.100d.txt")
+        self.w2i = self.get_word_to_index(train_tokens_1d)
+
+        self.vocab_len = len(self.w2i) + 1
+
+        train_encoding = self.get_tokens_encoding(tokens_train)
+        test_encoding = self.get_tokens_encoding(tokens_test)
+        '''
+
+        X_train_cleaned = [PreProcessing.clean_vulnerability_description(desc) for desc in self.X_train]
+
+        self.word_vectors_dict = self.load_word_embedding(file_path="./glove.6B/glove.6B.100d.txt")
+
+        vectorizer = CountCNNVectorizer()
+        train_encoding = vectorizer.fit_transform(sentenses=X_train_cleaned)
+
+        train_encoding_padded = tf.keras.preprocessing.sequence.pad_sequences(train_encoding,
+                                                                              maxlen=vectorizer._max_len,
+                                                                              padding="post")
+
+        embedding_matrix = self.get_embedding_matrix(word_to_index_dict=vectorizer._w2i,
+                                                     vocab_len=vectorizer._vocan_len)
+        y_train_one_hot = PreProcessing.get_one_hot_vectors(self.y_train)
+
+        clf = DeepLearningModels().MultiChannelCNN(vectorizer._max_len, vectorizer._vocan_len, self.embedding_dim,
+                                                   embedding_matrix)
+        clf.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+        clf.fit(train_encoding_padded, y_train_one_hot, batch_size=1, epochs=2)
+
+        if (self.X_test is not None):
+            X_test_cleaned = [PreProcessing.clean_vulnerability_description(desc) for desc in self.X_test]
+            test_encoding = vectorizer.transform(sentenses=X_test_cleaned)
+            test_encoding_paded = tf.keras.preprocessing.sequence.pad_sequences(test_encoding,
+                                                                                maxlen=vectorizer._max_len,
+                                                                                padding="post")
+
+            prediction_prob = clf.predict(test_encoding_paded)
+
+        else:
+            prediction_prob = clf.predict(train_encoding_padded)
+
+        predictions = np.argmax(prediction_prob, axis=1)
+
+        self.model = clf
+        self.vectorizer = vectorizer
+
+        return predictions
+
+    '''
+    def get_tokens_encoding(self, sentence_tokens):
+
+        encoding = []
+
+        for sentence in sentence_tokens:
+
+            sentence_encoding = []
+
+            for token in sentence:
+                sentence_encoding.append(self.w2i[token])
+
+            encoding.append(sentence_encoding)
+
+        return encoding
+
+
+    def get_word_to_index(self, tokens):
+
+        w2i = collections.defaultdict(int)
+        token_frequency = collections.Counter(tokens)
+
+        token_counter = 1
+
+        for t in token_frequency.items():
+            w2i[t[0]] = token_counter
+            token_counter = token_counter + 1
+
+        return w2i
+    '''
+
+    def get_embedding_matrix(self, word_to_index_dict, vocab_len):
+
+        embedding_matrix = np.zeros((vocab_len, self.embedding_dim))
+
+        for w in word_to_index_dict:
             try:
-                embedding_matrix[self.w2i[w], :] = np.array(self.word_vectors_dict[w])
+                embedding_matrix[word_to_index_dict[w], :] = np.array(self.word_vectors_dict[w])
             except KeyError:
-                embedding_matrix[self.w2i[w], :] = np.zeros(self.embedding_dim)
+                embedding_matrix[word_to_index_dict[w], :] = np.zeros(self.embedding_dim)
 
         return embedding_matrix
 
@@ -517,8 +591,7 @@ class NLPDeploymentService:
         if (file_name.split('.')[-1] == "pkl"):
             model = pickle.load(open(file_name, 'rb'))
         else:
-            # to-do: handle for tensorflow model
-            pass
+            model = tf.keras.models.load_model(file_name)
 
         return model
 
@@ -553,18 +626,19 @@ class NLPDeploymentService:
             vectorizer_obj = self.load_nlp_vectorizer(vectorizer_obj_file)
             clean_desc_vec = vectorizer_obj.transform([clean_desc])
 
-        predicted_category = model.predict(clean_desc_vec)
-        print(model.predict_proba(clean_desc_vec))
+        if (trained_model_location.split('.')[-1] == "pkl"):
+            predicted_category = model.predict(clean_desc_vec)
+            print(model.predict_proba(clean_desc_vec))
+        else:
+            test_encoding_paded = tf.keras.preprocessing.sequence.pad_sequences(clean_desc_vec,
+                                                                                maxlen=vectorizer_obj._max_len,
+                                                                                padding="post")
+            prediction_prob = model.predict(test_encoding_paded)
+            predicted_category = np.argmax(prediction_prob, axis=1)
+            print(prediction_prob)
 
-        # return label_encoder.inverse_transform(predicted_category.reshape(-1, 1))
-        #FIXME
-        output = {
-            'clean_input': str(clean_desc),
-            'vectors': str(model.predict_proba(clean_desc_vec)),
-            'predicted_category': str(label_encoder.inverse_transform(predicted_category.reshape(-1, 1))[0])
-        }
-        output = json.dumps(output)
-        return output
+        print(label_encoder.classes_)
+        return label_encoder.inverse_transform(predicted_category.reshape(-1, 1))
 
 
 class PreProcessing:
@@ -745,7 +819,7 @@ class Visualizer:
 
 
 if (__name__ == "__main__"):
-    # block of code to train and save the model
+    # bloxk of code to train and save the model
 
     data_obj_2019 = LoadData(json_file_name="nvdcve-1.0-2019.json")
     data_obj_2019.load_file()
@@ -778,45 +852,57 @@ if (__name__ == "__main__"):
 
     with open('./data/trained_models/categories.pkl', 'wb') as f:
         pickle.dump(le_obj, f)
+    '''
+    df_2017_2018_2019 = pd.concat([df_2017, df_2018, df_2019], axis = 0)
 
-    df_2017_2018_2019 = pd.concat([df_2017, df_2018, df_2019], axis=0)
 
-    nlp_model_object = NLPModel(X_train=df_2017_2018_2019["description"].values,
-                                y_train=df_2017_2018_2019["categorical_target"].values)
+    nlp_model_object = NLPModelCNN(X_train = df_2017_2018_2019["description"].values, y_train = df_2017_2018_2019["categorical_target"].values)
+    nlp_model_object.build_cnn_model()
+    nlp_model_object.save_nlp_model(file_name = './data/trained_models/count_vect_cnn_model_2017_2018_2019')
+    '''
+    # block of code for building and saving scikit-learn based models
+    '''
+    nlp_model_object = NLPModel(X_train = df_2017_2018_2019["description"].values, y_train = df_2017_2018_2019["categorical_target"].values)
     nlp_model_object.build_model_tfidf()
-    nlp_model_object.save_nlp_model(file_name='./data/trained_models/tf_idf_vect_model_2017_2018_2019')
+    nlp_model_object.save_nlp_model(file_name = './data/trained_models/tf_idf_vect_model_2017_2018_2019')
+    '''
 
     # block of code to infer model on a single description
 
+    '''
     new_vulnerability_desc = "Under certain conditions, SAP Landscape Management enterprise edition, before version 3.0, allows custom secure parameters? default values to be part of the application logs leading to Information Disclosure."
 
     nlp_deployment_obj = NLPDeploymentService()
     predicted_category = nlp_deployment_obj.test_on_single_desc(
-        vulnerability_description=new_vulnerability_desc,
-        trained_model_location='./data/trained_models/tf_idf_vect_model_2017_2018_2019_Model.pkl',
-        vectorizer_obj_file='./data/trained_models/tf_idf_vect_model_2017_2018_2019_Vectorizer.pkl'
+        vulnerability_description = new_vulnerability_desc, 
+        trained_model_location = './data/trained_models/count_vect_cnn_model_2017_2018_2019_Model.h5',
+        vectorizer_obj_file = './data/trained_models/count_vect_cnn_model_2017_2018_2019_Vectorizer.pkl'
     )
 
     print(predicted_category)
+    '''
 
     # block of code to run the model on a specific set of test data, and to get confusion matrics
 
     # nlp_model_object.predict("Under certain conditions, SAP Landscape Management enterprise edition, before version 3.0, allows custom secure parameters? default values to be part of the application logs leading to Information Disclosure.")
-    '''
-    nlp_model_object = NLPModel(X_train = df_2018["description"].values, X_test = df_2019["description"].values, y_train = df_2018["categorical_target"].values, y_test = df_2019["categorical_target"].values)
-    cnn_nlp_model_object = NLPModelCNN(X_train = df_2018["description"].values, X_test = df_2019["description"].values, y_train = df_2018["categorical_target"].values, y_test = df_2019["categorical_target"].values)
 
-    predictions_count = nlp_model_object.build_model_count()
-    #predictions_mean_embeddings = nlp_model_object.build_model_average_word_embedding()
-    predictions_cnn = cnn_nlp_model_object.build_cnn_model()
+    df_2017_2018 = pd.concat([df_2017, df_2018], axis=0)
 
-    #nlp_model_object.get_top_bottom_features(le_obj)
+    nlp_model_object = NLPModel(X_train=df_2017_2018["description"].values, X_test=df_2019["description"].values,
+                                y_train=df_2017_2018["categorical_target"].values,
+                                y_test=df_2019["categorical_target"].values)
+    # cnn_nlp_model_object = NLPModelCNN(X_train = df_2017_2018["description"].values, X_test = df_2019["description"].values, y_train = df_2017_2018["categorical_target"].values, y_test = df_2019["categorical_target"].values)
 
-    #nlp_model_object.print_accuracy(predictions = predictions)
-    nlp_model_object.print_metrics(predictions = predictions_count)
-    #nlp_model_object.print_metrics(predictions = predictions_mean_embeddings)
-    cnn_nlp_model_object.print_metrics(predictions = predictions_cnn)
+    predictions_count = nlp_model_object.build_model_tfidf()
+    # predictions_mean_embeddings = nlp_model_object.build_model_average_word_embedding()
+    # predictions_cnn = cnn_nlp_model_object.build_cnn_model()
+
+    # nlp_model_object.get_top_bottom_features(le_obj)
+
+    # nlp_model_object.print_accuracy(predictions = predictions)
+    nlp_model_object.print_metrics(predictions=predictions_count)
+# nlp_model_object.print_metrics(predictions = predictions_mean_embeddings)
+# cnn_nlp_model_object.print_metrics(predictions = predictions_cnn)
 
 
-    #Visualizer.show_confusion_matrix(df_2019["categorical_target"].values, predictions, label_encoder_object = le_obj)
-    '''
+# Visualizer.show_confusion_matrix(df_2019["categorical_target"].values, predictions, label_encoder_object = le_obj)
