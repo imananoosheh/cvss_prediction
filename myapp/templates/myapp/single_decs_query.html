@@ -1,0 +1,24 @@
+{% extends 'myapp/base.html' %}
+{% block body_block %}
+    <div class="col-6">
+        <form action="{% url 'myapp:single_decs_query' %}" method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <input type="submit" name="submit1" value="predict"/>
+        </form>
+    </div>
+    <div class="col-6">
+        {% if input %}
+            <h3>Input:</h3>
+            <p>{{ input }}</p>
+        {% else %}
+            <strong>There are no Input!</strong>
+        {% endif %}
+        {% if output %}
+            <h3>Output:</h3>
+            <p>{{ output }}</p>
+        {% else %}
+            <strong>There are no output!</strong>
+        {% endif %}
+    </div>
+{% endblock %}

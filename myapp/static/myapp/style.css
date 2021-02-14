@@ -1,0 +1,96 @@
+/*@keyframes Crazy {*/
+/*    0% {*/
+/*        background-color: black;*/
+/*        color: red;*/
+/*        font-size: 150px;*/
+/*        font-weight: bold;*/
+/*        text-align: center;*/
+/*    }*/
+/*        10% {*/
+/*        background-color: red;*/
+/*        color: orange;*/
+/*        font-size: 100px;*/
+/*        font-weight: lighter;*/
+/*        text-align: left;*/
+/*    }*/
+/*        20% {*/
+/*        background-color: orange;*/
+/*        color: yellow;*/
+/*        font-size: 50px;*/
+/*        font-weight: bold;*/
+/*        text-align: center;*/
+/*    }*/
+/*        30% {*/
+/*        background-color: yellow;*/
+/*        color: green;*/
+/*        font-size: 100px;*/
+/*        font-weight: lighter;*/
+/*        text-align: right;*/
+/*    }*/
+/*        40% {*/
+/*        background-color: green;*/
+/*        color: blue;*/
+/*        font-size: 150px;*/
+/*        font-weight: bold;*/
+/*        text-align: center;*/
+/*    }*/
+/*        50% {*/
+/*        background-color: blue;*/
+/*        color: aqua;*/
+/*        font-size: 100px;*/
+/*        font-weight: lighter;*/
+/*        text-align: left;*/
+/*    }*/
+/*        60% {*/
+/*        background-color: aqua;*/
+/*        color: purple;*/
+/*        font-size: 50px;*/
+/*        font-weight: bold;*/
+/*        text-align: center;*/
+/*    }*/
+/*        70% {*/
+/*        background-color: purple;*/
+/*        color: white;*/
+/*        font-size: 100px;*/
+/*        font-weight: lighter;*/
+/*        text-align: right;*/
+/*    }*/
+/*        80% {*/
+/*        background-color: white;*/
+/*        color: black;*/
+/*        font-size: 150px;*/
+/*        font-weight: bold;*/
+/*        text-align: center;*/
+/*    }*/
+/*        90% {*/
+/*        background-color: black;*/
+/*        color: white;*/
+/*        font-size: 100px;*/
+/*        font-weight: lighter;*/
+/*        text-align: left;*/
+/*    }*/
+/*        100% {*/
+/*        background-color: black;*/
+/*        color: red;*/
+/*        font-size: 150px;*/
+/*        font-weight: bold;*/
+/*        text-align: center;*/
+/*    }*/
+
+/*}*/
+
+h1 {
+    background-color: #efefef;
+    color: #212121;
+    font-size: 2rem;
+    font-weight: bold;
+    text-align: center;
+    /*animation-name: Crazy;*/
+    /*animation-duration: 5s;*/
+    /*animation-iteration-count: infinite;*/
+}
+
+.hbar1 {
+    display: inline;
+    margin: 15px;
+}
